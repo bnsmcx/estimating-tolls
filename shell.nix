@@ -19,6 +19,6 @@ pkgs.mkShell {
     alias vim=lvim
     
     # Launch zellij
-    zellij --layout layout.kdl options --simplified-ui true --default-shell zsh
+    zellij --layout layout.kdl options --simplified-ui true --default-shell zsh --copy-command "xclip -selection clipboard"
   '';
 }
