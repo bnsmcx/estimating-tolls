@@ -9,6 +9,7 @@ pkgs.mkShell {
     git
     gopls
     lunarvim
+    neovim
     zellij
   ];
 
