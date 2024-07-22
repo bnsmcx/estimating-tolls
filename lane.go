@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -29,7 +30,7 @@ type Routes struct {
 }
 
 type Route struct {
-	cost     float32
+	cost     float64
 	polyLine string
 }
 
@@ -57,7 +58,7 @@ func (l *Lane) CalcuateRoutes() (*Routes, error) {
 
 	//TODO: Logic to permute routes to get different costs
 	var routes [3]Route
-	routes[0] = Route{getCost(pl), pl}
+	routes[0] = Route{getTollCost(pl), pl}
 
 	// TODO: Implement Sort interface here
 
@@ -68,7 +69,7 @@ func (l *Lane) CalcuateRoutes() (*Routes, error) {
 	}, nil
 }
 
-func getCost(pl string) float32 {
+func getTollCost(pl string) float64 {
 	// TODO: Toll Guru api call goes here
 	return 13.37
 }
@@ -181,6 +182,11 @@ func getLatLong(address string) (lat, long float64, err error) {
 	if err != nil {
 		return 0, 0, err
 	}
+
+  if resp.StatusCode != http.StatusOK {
+    log.Println(resp.Status)
+    log.Println(string(body))
+  }
 
 	// Parse the JSON response
 	var geocodingResponse GeocodingResponse
