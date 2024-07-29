@@ -11,10 +11,10 @@ func main() {
     printUsage()
     os.Exit(1)
   }
-  if l, err := NewLane(os.Args[1], os.Args[2]); err != nil {
+  if _, err := NewLane(os.Args[1], os.Args[2]); err != nil {
     log.Fatalln(err)
   } else {
-    fmt.Println(l.String())
+    // fmt.Println(l.String())
   }
 }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +10,14 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
+
+	routes "cloud.google.com/go/maps/routing/apiv2"
+	"cloud.google.com/go/maps/routing/apiv2/routingpb"
+	"google.golang.org/api/option"
+	"google.golang.org/genproto/googleapis/type/latlng"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Lane struct {
@@ -51,22 +60,91 @@ func NewLane(start, end string) (*Lane, error) {
 
 func (l *Lane) CalcuateRoutes() (*Routes, error) {
 
-	pl, err := getPolyLine(l.origin, l.destination)
+	_, err := getRoute(l.origin, l.destination)
 	if err != nil {
 		return nil, err
 	}
 
-	//TODO: Logic to permute routes to get different costs
-	var routes [3]Route
-	routes[0] = Route{getTollCost(pl), pl}
+	// //TODO: Logic to permute routes to get different costs
+	// var routes [3]Route
+	// routes[0] = Route{getTollCost(pl), pl}
 
-	// TODO: Implement Sort interface here
+	// // TODO: Implement Sort interface here
 
-	return &Routes{
-		best:  routes[0],
-		avg:   routes[0],
-		worst: routes[0],
-	}, nil
+	// return &Routes{
+	// 	best:  routes[0],
+	// 	avg:   routes[0],
+	// 	worst: routes[0],
+	// }, nil
+	return nil, nil
+}
+
+func getRoute(waypoint1 *Waypoint, waypoint2 *Waypoint) (string, error) {
+	client, err := routes.NewRoutesClient(context.Background(),
+		option.WithAPIKey(os.Getenv("GOOGLE_API")))
+	if err != nil {
+		return "foo", err
+	}
+	defer client.Close()
+
+	// Define the field mask
+	fieldMask := "*"
+
+	// Create a context with the X-Goog-FieldMask header
+	ctx := metadata.AppendToOutgoingContext(context.Background(), "X-Goog-FieldMask", fieldMask)
+
+	resp, err := client.ComputeRoutes(ctx, &routingpb.ComputeRoutesRequest{
+		Origin: &routingpb.Waypoint{
+			LocationType: &routingpb.Waypoint_Location{
+				Location: &routingpb.Location{
+					LatLng: &latlng.LatLng{
+						Latitude:  waypoint1.lat,
+						Longitude: waypoint1.long,
+					},
+				},
+			},
+		},
+		Destination: &routingpb.Waypoint{
+			LocationType: &routingpb.Waypoint_Location{
+				Location: &routingpb.Location{
+					LatLng: &latlng.LatLng{
+						Latitude:  waypoint2.lat,
+						Longitude: waypoint2.long,
+					},
+				},
+			},
+		},
+		TravelMode:        routingpb.RouteTravelMode_DRIVE,
+		RoutingPreference: routingpb.RoutingPreference_TRAFFIC_AWARE_OPTIMAL,
+		PolylineQuality:   routingpb.PolylineQuality_HIGH_QUALITY,
+		PolylineEncoding:  routingpb.PolylineEncoding_ENCODED_POLYLINE,
+		DepartureTime: &timestamppb.Timestamp{
+			Seconds: time.Now().Add(time.Hour * 24).Unix(),
+		},
+		ComputeAlternativeRoutes: true,
+		RouteModifiers: &routingpb.RouteModifiers{
+			AvoidTolls:    false,
+			AvoidHighways: false,
+			AvoidFerries:  false,
+		},
+		RequestedReferenceRoutes: []routingpb.ComputeRoutesRequest_ReferenceRoute{},
+		ExtraComputations:        []routingpb.ComputeRoutesRequest_ExtraComputation{routingpb.ComputeRoutesRequest_TOLLS},
+		TrafficModel:             routingpb.TrafficModel_BEST_GUESS,
+	})
+	if err != nil {
+		log.Println(err)
+	}
+
+	for _, r := range resp.GetRoutes() {
+		// Construct the Google Maps URL with the polyline
+    pl := r.Polyline.GetEncodedPolyline()
+		mapsURL := fmt.Sprintf("https://www.google.com/maps/dir/?api=1&travelmode=driving&path=enc:%s", url.QueryEscape(pl))
+
+		fmt.Println(r.TravelAdvisory.GetTollInfo().EstimatedPrice)
+		fmt.Println(mapsURL)
+	}
+
+	return "foo", nil
 }
 
 func getTollCost(pl string) float64 {
@@ -183,10 +261,10 @@ func getLatLong(address string) (lat, long float64, err error) {
 		return 0, 0, err
 	}
 
-  if resp.StatusCode != http.StatusOK {
-    log.Println(resp.Status)
-    log.Println(string(body))
-  }
+	if resp.StatusCode != http.StatusOK {
+		log.Println(resp.Status)
+		log.Println(string(body))
+	}
 
 	// Parse the JSON response
 	var geocodingResponse GeocodingResponse
